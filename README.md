@@ -1,6 +1,6 @@
-# MeasureLogic Daily Ingest Pipeline
+# MeasureLogic Monthly Ingest Pipeline
 
-Pulls yesterday's data from the FieldPop/MeasureLogic API and upserts into PostgreSQL on Railway.
+Pulls the previous calendar month's data (all at once, one API call per device) from the FieldPop/MeasureLogic API and upserts into PostgreSQL on Railway. Powers the Falcon Field billing tab in the WEGPageTest portal.
 
 ## Tables Created
 
@@ -26,7 +26,7 @@ One row per device/child per day with first/last/total for energy points and max
 | `ML_USER` | MeasureLogic username |
 | `ML_KEY` | MeasureLogic password |
 | `DATABASE_URL` | Railway Postgres connection string |
-| `TARGET_DATE` | (Optional) Override date as `YYYY-MM-DD`. Defaults to yesterday. |
+| `TARGET_MONTH` | (Optional) Override month as `YYYY-MM`. Defaults to the previous calendar month. |
 | `DEVICE_LIMIT` | (Optional) Max devices to pull. Defaults to 18. |
 
 ## Railway Setup
@@ -34,7 +34,7 @@ One row per device/child per day with first/last/total for energy points and max
 1. Push this folder to a new GitHub repo.
 2. In your existing Railway project → **+ New** → **GitHub Repo**.
 3. Add the environment variables above in the Variables tab.
-4. Set cron schedule: `0 9 * * *` (9 AM UTC / 3 AM Mountain).
+4. Set cron schedule: `0 9 1 * *` (9 AM UTC on the 1st of the month / 2-3 AM Mountain, so the previous month is complete before it runs).
 
 ## Local Test (PowerShell)
 
@@ -42,6 +42,6 @@ One row per device/child per day with first/last/total for energy points and max
 $env:ML_USER="your_username"; $env:ML_KEY="your_password"; $env:DATABASE_URL="postgresql://..."; python measurelogic_ingest.py
 ```
 
-## Backfill a Specific Date
+## Backfill a Specific Month
 
-Set `TARGET_DATE=2026-06-01` in Railway variables and trigger a manual deploy.
+Set `TARGET_MONTH=2026-06` in Railway variables and trigger a manual deploy.

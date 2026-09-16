@@ -1,9 +1,14 @@
 """
-MeasureLogic Daily Ingest Pipeline
+MeasureLogic Monthly Ingest Pipeline
 ====================================
-Pulls yesterday's interval data from the FieldPop/MeasureLogic API
-and upserts into PostgreSQL:
+Pulls the previous calendar month's interval data from the FieldPop/
+MeasureLogic API in one shot per device and upserts into PostgreSQL:
   - measurelogic_interval : one row per timestamp/device/child with a column per point
+
+Runs monthly (Railway cron: 1st of the month) rather than daily -- the
+FieldPop deviceDataLog endpoint already accepts an arbitrary
+startUTCsec/endUTCsec range, so a whole month is one call per device
+instead of 30 daily calls.
 
 Environment variables required:
   ML_USER       — MeasureLogic username
@@ -11,7 +16,8 @@ Environment variables required:
   DATABASE_URL  — PostgreSQL connection string (Railway Postgres)
 
 Optional:
-  TARGET_DATE   — Override date to pull (YYYY-MM-DD). Defaults to yesterday.
+  TARGET_MONTH  — Override month to pull (YYYY-MM). Defaults to the previous
+                  calendar month relative to now.
   DEVICE_LIMIT  — Max number of devices to pull (default: 18)
 """
 
@@ -57,16 +63,26 @@ INCLUDED_POINTS = [
 ]
 
 # ── Date resolution ───────────────────────────────────────────────────────────
-def resolve_target_date():
-    raw = os.environ.get("TARGET_DATE", "").strip()
+def resolve_target_month():
+    """Returns (year, month) for the month to pull. TARGET_MONTH (YYYY-MM)
+    overrides; otherwise defaults to the previous calendar month relative to
+    now, so a run on the 1st always covers the month that just ended."""
+    raw = os.environ.get("TARGET_MONTH", "").strip()
     if raw:
-        return datetime.strptime(raw, "%Y-%m-%d").date()
-    return (datetime.now(timezone.utc) - timedelta(days=1)).date()
+        dt = datetime.strptime(raw, "%Y-%m")
+        return dt.year, dt.month
+    today = datetime.now(timezone.utc).date()
+    first_of_this_month = today.replace(day=1)
+    last_day_prev_month = first_of_this_month - timedelta(days=1)
+    return last_day_prev_month.year, last_day_prev_month.month
 
 
-def date_to_epoch_range(d):
-    start = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
-    end   = start + timedelta(days=1)
+def month_to_epoch_range(year, month):
+    start = datetime(year, month, 1, tzinfo=timezone.utc)
+    if month == 12:
+        end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
     return int(start.timestamp()), int(end.timestamp())
 
 
@@ -132,10 +148,10 @@ DO UPDATE SET
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    target_date = resolve_target_date()
-    log.info(f"=== MeasureLogic ingest for {target_date} ===")
+    year, month = resolve_target_month()
+    log.info(f"=== MeasureLogic ingest for {year}-{month:02d} ===")
 
-    start_epoch, end_epoch = date_to_epoch_range(target_date)
+    start_epoch, end_epoch = month_to_epoch_range(year, month)
 
     token = login()
     log.info("Logged in to MeasureLogic API.")
@@ -177,7 +193,7 @@ def main():
 
     interval_rows = [
         (
-            target_date, ts, device_id, child_id,
+            ts.date(), ts, device_id, child_id,
             points["EnergyP_Tot_Imp"],
             points["EnergyP_Tot_Exp"],
             points["EnergyP_Inv_Imp"],
@@ -204,7 +220,7 @@ def main():
     finally:
         conn.close()
 
-    log.info(f"=== Done. MeasureLogic ingest complete for {target_date} ===")
+    log.info(f"=== Done. MeasureLogic ingest complete for {year}-{month:02d} ===")
 
 
 if __name__ == "__main__":
