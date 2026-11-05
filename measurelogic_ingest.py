@@ -77,12 +77,18 @@ def resolve_target_month():
     return last_day_prev_month.year, last_day_prev_month.month
 
 
+# Falcon Field is in Mesa, AZ (UTC-7 year-round, no DST). Months are pulled
+# as Arizona-local midnight-to-midnight so the last 7 hours of a month
+# (5 PM-midnight local) land in that month's pull, not the next one's.
+AZ_UTC_OFFSET = timedelta(hours=7)
+
+
 def month_to_epoch_range(year, month):
-    start = datetime(year, month, 1, tzinfo=timezone.utc)
+    start = datetime(year, month, 1, tzinfo=timezone.utc) + AZ_UTC_OFFSET
     if month == 12:
-        end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+        end = datetime(year + 1, 1, 1, tzinfo=timezone.utc) + AZ_UTC_OFFSET
     else:
-        end = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+        end = datetime(year, month + 1, 1, tzinfo=timezone.utc) + AZ_UTC_OFFSET
     return int(start.timestamp()), int(end.timestamp())
 
 

@@ -1,6 +1,6 @@
 # MeasureLogic Monthly Ingest Pipeline
 
-Pulls the previous calendar month's data (all at once, one API call per device) from the FieldPop/MeasureLogic API and upserts into PostgreSQL on Railway. Powers the Falcon Field billing tab in the WEGPageTest portal.
+Pulls the previous calendar month's data (all at once, one API call per device) from the FieldPop/MeasureLogic API and upserts into PostgreSQL on Railway. Months are Arizona-local (UTC-7, no DST) midnight to midnight, matching Falcon Field billing -- not UTC calendar months, which would leave each month's last 7 local hours for the next run. Powers the Falcon Field billing tab in the WEGPageTest portal.
 
 ## Tables Created
 
